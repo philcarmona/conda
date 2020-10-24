@@ -4,6 +4,7 @@ ipython == 7.13.0
 ipykernel == 5.2.0
 matplotlib == 3.1.2
 pandas == 0.25.3
+scipy
 ipywidgets==7.5.1
 jupyter-js-widgets-nbextension==0.0.2.dev0
 jupyter==1.0.0
