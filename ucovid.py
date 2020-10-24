@@ -552,16 +552,16 @@ def puis(A,n):
         B=np.dot(B,A)
     return(B)
 #essai de l'exemple de sylvain
-def sylvainhess(beta=1.5,b=1.5,mu=2,r=1,delta=0.1,nbpts=200,T=1,voir=False):
+def sylvainhess(beta=1.5,b=1.5,mu=1,r=2,delta=0.1,nbpts=200,T=1,voir=False):
     r""" on renvoie  la valeur approchee du seuil P, et P pour le modele de Lord, Woolhouse  de Heesterbeek 1996"""
     
 
     def B(t):
-        return(np.array([[-mu,b*(1+delta*np.sin(2*np.pi*t/T))],
-                        [beta*(1-delta*np.sin(2*np.pi*t/T)),-r]]))
+        return(np.array([[-r,b*(1+delta*np.sin(2*np.pi*t/T))],
+                        [beta*(1-delta*np.sin(2*np.pi*t/T)),-mu]]))
     def msisi(x,t):
         return(np.dot(B(t),x))
-    #on resout l'ode en partant de deux veceurs de base
+    #on resout l'ode en partant de deux vecteurs de base
     timeint=np.arange(0,T+1/nbpts,T/nbpts)
     y1=[1,0]
     z1=np.array(odeint(msisi,y1,timeint))
@@ -576,10 +576,243 @@ def sylvainhess(beta=1.5,b=1.5,mu=2,r=1,delta=0.1,nbpts=200,T=1,voir=False):
 
     return(l)
   
-def lamvsylvain(beta=1.5,b=1.5,r=1,mu=2,deltamax=0.5):
+def lamvsylvain(beta=1.5,b=1.5,r=2,mu=1,deltamax=0.5):
     ept=np.linspace(0.0,deltamax,50)
     x=np.array([sylvainhess(beta=beta,b=b,r=r,mu=mu,delta=e) for e in ept])
     plt.plot(ept,x,label=r"$\lambda_d(E)$") #on voit bien que c'est en epsilon^2
     plt.xlabel(r"$\delta$")
     plt.legend()
     plt.savefig("sylvainhessexample.pdf",bbox_inches='tight' )
+
+def bsylvainhess(beta=1.5,b=1.5,mu=1,r=2,delta=0.1,nbpts=200,T=1,voir=False):
+    r""" on renvoie  le rayon spectral lambda_d(E) et l'integrale de l'abcisse spectrale, pour  le modele de Lord, Woolhouse  de Heesterbeek 1996"""
+    
+
+    def B(t):
+        return(np.array([[-r,b*(1+delta*np.sin(2*np.pi*t/T))],
+                        [beta*(1-delta*np.sin(2*np.pi*t/T)),-mu]]))
+    def msisi(x,t):
+        return(np.dot(B(t),x))
+    #on resout l'ode en partant de deux vecteurs de base
+    timeint=np.arange(0,T+1/nbpts,T/nbpts)
+    y1=[1,0]
+    z1=np.array(odeint(msisi,y1,timeint))
+    y2=[0,1]
+    z2=np.array(odeint(msisi,y2,timeint))
+    #la matrice de monodromie est obtenue en prenant pour colonnes les valeurs
+    #des solutions au temps T
+    E=np.array([z1[-1],z2[-1]])
+    E=E.transpose()
+    
+    l,v=vecetspectralrad(E)
+
+    bs=np.array([spectralabc(B(t)) for t in np.linspace(0,T,100)])
+    
+
+    return(l,bs.mean())
+  
+def blamvsylvain(beta=1.5,b=1.5,r=2,mu=1,deltamax=0.5,T=1):
+    ept=np.linspace(0.0,deltamax,50)
+    x=np.array([bsylvainhess(beta=beta,b=b,r=r,mu=mu,delta=e,T=T) for e in ept])
+    lamd=x[:,0]
+    dlamd=lamd-lamd[0]
+    #plt.plot(ept,lamd,label=r"$\lambda_d(E)$")
+    plt.plot(ept,np.log(lamd)/T,label=r"$ln\lambda_d(E)/T$") #on voit bien que c'est en delta^2
+    plt.plot(ept,x[:,1],label=r"$\int s(A(u))\, du$") 
+    plt.xlabel(r"$\delta$")
+    plt.legend()
+    plt.savefig("bsylvainhessexample.pdf",bbox_inches='tight' )
+
+
+#vendredi 8 mai 2020
+
+def genex1per(epsilon,t,mud=1,mdu=1):
+    r""" genere la matrice A_epsilon(t) de l'exemple 1 du papier periodic"""
+    azero=np.array([[-2,2],[1,-1]])
+    mbarre=np.array([[0,mud],[mdu,0]])
+    return(azero+epsilon*(1+np.cos(2*np.pi * t))*mbarre)
+
+def genex1approxsa(epsilon,mud=1,mdu=1):
+    azero=np.array([[-2,2],[1,-1]])
+    mbarre=np.array([[0,mud],[mdu,0]])
+    uzero=0.5*np.array([1,1])
+    vzero=(2/3)*np.array([1,2])
+    return(spectralabc(azero) + epsilon*np.dot(vzero,np.dot(mbarre,uzero)))
+
+def lamsaetapp(gena,epsilon,nbpts=100,T=1,Voir=False):
+    r""" on renvoie  le rayon spectral lambda_d(E) et l'integrale de l'abcisse spectrale, et son approximation"""
+    
+    def msisi(x,t):
+        return(np.dot(gena(epsilon,t/T),x))
+    #on resout l'ode en partant de deux vecteurs de base
+    timeint=np.arange(0,T+1/nbpts,T/nbpts)
+    y1=[1,0]
+    z1=np.array(odeint(msisi,y1,timeint))
+    y2=[0,1]
+    z2=np.array(odeint(msisi,y2,timeint))
+    #la matrice de monodromie est obtenue en prenant pour colonnes les valeurs
+    #des solutions au temps T
+    E=np.array([z1[-1],z2[-1]])
+    E=E.transpose()
+    
+    l,v=vecetspectralrad(E)
+
+    bs=np.array([spectralabc(gena(epsilon,t)) for t in np.linspace(0,1,100)])
+    if Voir:
+        plt.plot(bs)
+
+    return(l,bs.mean())
+  
+def vlamsaetapp(gena,gensapp,epsilonmax=0.5,T=1):
+    
+    ept=np.linspace(0.0,epsilonmax,50)
+    x=np.array([lamsaetapp(gena,epsilon=e,T=T) for e in ept])
+    lamd=x[:,0]
+    plt.plot(ept,np.log(lamd)/T,label=r"$\frac{1}{T} \ln(\rho(\phi^{(T)}(T)))$") #on voit bien que c'est en delta^2
+    plt.plot(ept,x[:,1],label=r"$MSA=\int s(A(u))\, du$")
+    msapp=np.array([gensapp(e) for e in ept])
+    plt.plot(ept,msapp,label=r"MSA approximation")
+    plt.xlabel(r"$\epsilon$")
+    plt.legend()
+    plt.savefig("ex1periodic.pdf",bbox_inches='tight' )
+    
+def tex1(m12=1,m21=1,epsilonmax=0.5,T=1):
+    def f(e,t):
+        return(genex1per(epsilon=e,t=t,mud=m12,mdu=m21))
+    def g(e):
+        return(genex1approxsa(e,m12,m21))
+    vlamsaetapp(f,g,epsilonmax,T)
+
+#Lundi 11 mai 2020
+def genex1approxlam(mud=1,mdu=1):
+    azero=np.array([[-2,2],[1,-1]])
+    mbarre=np.array([[0,mud],[mdu,0]])
+    uzero=0.5*np.array([1,1])
+    vzero=(2/3)*np.array([1,2])
+    return(np.dot(vzero,np.dot(mbarre,uzero)))
+
+def vlametapp(gena,genlamapp,epsilonmax=0.5,T=1):
+    r"""renvoie le rayon spectral de la matric de monodromie et son approximation"""
+    
+    ept=np.linspace(0.0,epsilonmax,50)
+    x=np.array([lamsaetapp(gena,epsilon=e,T=T) for e in ept])
+    lamd=x[:,0]
+    plt.plot(ept,lamd,label=r"$\lambda_d$") #on voit bien que c'est en delta^2
+    penteapprox=genlamapp()
+    print("pente approximation",penteapprox)
+    plt.plot(ept,lamd[0]*(1 +(penteapprox*ept)),label=r"$\lambda_d$ approximation")
+    plt.xlabel(r"$\epsilon$")
+    plt.legend()
+    plt.savefig("ex1lamperiodic.pdf",bbox_inches='tight' )
+    
+def texlam1(m12=1,m21=1,epsilonmax=0.5,T=1):
+    def f(e,t):
+        return(genex1per(epsilon=e,t=t,mud=m12,mdu=m21))
+    def g():
+        return(genex1approxlam(m12,m21))
+    vlametapp(f,g,epsilonmax,T)
+    
+def genex2per(epsilon,t,b12=1,b21=1):
+    r""" genere la matrice A_epsilon(t) de l'exemple 2 du papier periodic"""
+    azero=np.array([[-2,2],[1,-1]])
+    B=np.array([[0,b12],[b21,0]])
+    return(azero+epsilon*(np.sin(2*np.pi * t))*B)
+
+def genex2approxlam(b12=1,b21=1):
+    B=np.array([[0,b12],[b21,0]])
+    uzero=0.5*np.array([1,1])
+    vzero=(2/3)*np.array([1,2])
+    buzero=np.dot(B,uzero)
+    bdeuxuzero=np.dot(B,buzero)
+    vnpd=np.dot(vzero,buzero)
+    return(np.dot(vzero,bdeuxuzero) - vnpd**2)
+
+def tex2(b12=2,b21=-1,epsilonmax=0.5,T=1):
+    def f(e,t):
+        return(genex2per(epsilon=e,t=t,b12=b12,b21=b21))
+    vlamsaetappbis(f,genex2approxlam(b12,b21),epsilonmax,T)
+
+    
+def vlamsaetappbis(gena,coeffdeux,epsilonmax=0.5,T=1):
+    
+    ept=np.linspace(0.0,epsilonmax,50)
+    x=np.array([lamsaetapp(gena,epsilon=e,T=T) for e in ept])
+    lamd=x[:,0]
+    #plt.plot(ept,np.log(lamd)/T,label=r"$\frac{1}{T} \ln(\rho(\phi^{(T)}(T)))$") #on voit bien que c'est en delta^2
+    plt.plot(ept,np.log(lamd)/T,label=r"$\frac{1}{T} \ln(\lambda_d)$") #on voit bien que c'est en delta^2
+    plt.plot(ept,x[:,1],label=r"$MSA=\int s(A(u))\, du$")
+    print("Second ordre coefficient v0Bpi0Bu0",coeffdeux)
+    plt.xlabel(r"$\epsilon$")
+    plt.legend()
+    plt.savefig("ex2msaperiodic.pdf",bbox_inches='tight' )
+
+
+#Mardi 16 juin 2020
+#tracons en plus la trajectoire dans l'espace des phases pour la solution issue du vecteur propre associe au rayon spectral de la matrice de monodromie
+
+
+
+def lamsaetappter(gena,epsilon,nbpts=100,T=1,Voir=False,nbper=5):
+    r""" on renvoie  le rayon spectral lambda_d(E) et l'integrale de l'abcisse spectrale, et trace la courbe limite"""
+    
+    def msisi(x,t):
+        return(np.dot(gena(epsilon,t/T),x))
+    #on resout l'ode en partant de deux vecteurs de base
+    timeint=np.arange(0,T+1/nbpts,T/nbpts)
+    y1=[1,0]
+    z1=np.array(odeint(msisi,y1,timeint))
+    y2=[0,1]
+    z2=np.array(odeint(msisi,y2,timeint))
+    #la matrice de monodromie est obtenue en prenant pour colonnes les valeurs
+    #des solutions au temps T
+    E=np.array([z1[-1],z2[-1]])
+    E=E.transpose()
+    
+    l,v=vecetspectralrad(E)
+
+    bs=np.array([spectralabc(gena(epsilon,t)) for t in np.linspace(0,T,100)])
+    if Voir:
+        plt.plot(bs)
+    tt=np.arange(0,nbper*T+1/nbpts,(nbper*T)/nbpts)
+    zt1=np.array(odeint(msisi,y1,tt))
+    zt2=np.array(odeint(msisi,y2,tt))
+    x=v[0]*zt1 + v[1]*zt2
+    corr=np.exp(-tt*np.log(l))
+    xc1=x[:,0]*corr
+    xc2=x[:,1]*corr
+    return(l,bs.mean(),x,xc1,xc2)
+
+def tex3(b12=2,b21=-1,epsilon=0.5,T=1):
+    def f(e,t):
+        return(genex2per(epsilon=epsilon,t=t,b12=b12,b21=b21))
+    coeffdeux=genex2approxlam(b12,b21)
+    l,msa,x,xc1,xc2 = lamsaetappter(f,epsilon,T=T)
+    print("lambda=",l,"msa=",msa)
+    return(l,msa,x,xc1,xc2)
+
+
+#Mercredi 24 juin 2020
+#on genere le graphique pour l'exemple Heesterbeek African Horse sickness
+
+def genafricanhorseper(epsilon,t):
+    r""" genere la matrice A_epsilon(t) de l'exemple African horse sickness du papier periodic"""
+    azero=np.array([[-2,2],[1,-1]])
+    B=np.array([[0,0],[1,0]])
+    return(azero+(np.exp(epsilon*(np.sin(2*np.pi * t)))-1)*B)
+
+
+def africanhorse(gena,epsilonmax=0.5,T=1):
+    
+    ept=np.linspace(0.0,epsilonmax,50)
+    x=np.array([lamsaetapp(gena,epsilon=e,T=T) for e in ept])
+    lamd=x[:,0]
+    #plt.plot(ept,np.log(lamd)/T,label=r"$\frac{1}{T} \ln(\rho(\phi^{(T)}(T)))$") #on voit bien que c'est en delta^2
+    plt.plot(ept,np.log(lamd)/T,label=r"$\frac{1}{T} \ln(\lambda_d)$") #on voit bien que c'est en delta^2
+    plt.plot(ept,x[:,1],label=r"$MSA=\int s(A(u))\, du$")
+    #print("Second ordre coefficient v0Bpi0Bu0",coeffdeux)
+    plt.xlabel(r"$\epsilon$")
+    plt.legend()
+    plt.savefig("africanhorse.pdf",bbox_inches='tight' )
+
+def texah(T=1):
+    africanhorse(genafricanhorseper,epsilonmax=0.5,T=T)
